@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import "./App.css";
 import web3 from "./utils/web3";
-import { rpsCoin } from "./utils/contracts";
+import { rps, rpsCoin } from "./utils/contracts";
 
 function App() {
-  const [userChoice, setUserChoice] = useState<string | null>(null);
-  const [botChoice, setBotChoice] = useState<string | null>(null);
+  const [userChoice, setUserChoice] = useState<number | null>(null);
+  const [botChoice, setBotChoice] = useState<number | null>(null);
   const [result, setResult] = useState<string | null>(null);
   const [bet, setBet] = useState<number>(0);
   
@@ -14,7 +14,7 @@ function App() {
   const [balance, setBalance] = useState<number>(0); // Initial balance
   const [botBalance, setBotBalance] = useState<number>(0); // Bot's balance
 
-  const choices = ["rock", "paper", "scissors"];
+  const choices = ["none", "rock", "paper", "scissors"];
 
   async function initializeAccounts() {
     if (!web3) {
@@ -32,52 +32,60 @@ function App() {
     setBotAccount(accounts[1]);
   }
 
-  function transferCoin(amount: number) {
-    if (!web3) {
-      alert("Please install MetaMask");
-      return;
-    }
+  // function transferCoin(amount: number) {
+  //   if (!web3) {
+  //     alert("Please install MetaMask");
+  //     return;
+  //   }
 
-    if (amount <= 0) {
-      rpsCoin.methods
-      .transfer(botAccount, Math.abs(amount))
-      .send({ from: account }) // Ensure [from](http://_vscodecontentref_/6) matches the connected MetaMask account
-      .on("transactionHash", (hash: string) => {
-        console.log("Transaction Hash:", hash);
-      })
-      .on("receipt", (receipt: any) => {
-        console.log("Transaction Receipt:", receipt);
-        updateBalance();
-      })
-      .on("error", (error: any) => {
-        console.error("Transaction Error:", error);
-      });
-    } else {
-      // Transfer to the user
-      rpsCoin.methods.transfer(account, amount).send({ from: botAccount });
-    }
-    updateBalance();
-  }
+  //   if (amount <= 0) {
+  //     rpsCoin.methods
+  //     .transfer(botAccount, Math.abs(amount))
+  //     .send({ from: account }) // Ensure [from](http://_vscodecontentref_/6) matches the connected MetaMask account
+  //     .on("transactionHash", (hash: string) => {
+  //       console.log("Transaction Hash:", hash);
+  //     })
+  //     .on("receipt", (receipt: any) => {
+  //       console.log("Transaction Receipt:", receipt);
+  //       updateBalance();
+  //     })
+  //     .on("error", (error: any) => {
+  //       console.error("Transaction Error:", error);
+  //     });
+  //   } else {
+  //     // Transfer to the user
+  //     rpsCoin.methods.transfer(account, amount).send({ from: botAccount });
+  //   }
+  //   updateBalance();
+  // }
 
   function updateBalance() {
     if (account) {
-      rpsCoin.methods.getBalance(account).call<number>()
-      .then((balance) => {
-        if (balance) {
-          setBalance(Number(balance));
+      rpsCoin.methods.balanceOf(account).call<number>()
+      .then((bal) => {
+        if (bal) {
+          setBalance(Number(web3?.utils.fromWei(bal.toString(), "ether")));
         }
       });
-
-      rpsCoin.methods.getBalance(botAccount).call<number>()
-      .then((botBalance) => {
-        if (botBalance) {
-          setBotBalance(Number(botBalance));
+    }
+    
+    if (botAccount) {
+      rpsCoin.methods.balanceOf(botAccount).call<number>()
+      .then((botBal) => {
+        if (botBal) {
+          setBotBalance(Number(web3?.utils.fromWei(botBal.toString(), "ether")));
         }
       });
     }
   }
 
-  function playGame(choice: string) {
+  function generateSecret(length: number): string {
+    const array = new Uint8Array(length);
+    window.crypto.getRandomValues(array);
+    return Array.from(array, (byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  async function playGame(choice: number) {
     if (bet <= 0 || bet > balance) {
       setResult("Invalid bet amount!");
       return;
@@ -88,28 +96,55 @@ function App() {
       return;
     }
 
-    const botRandomChoice = choices[Math.floor(Math.random() * choices.length)];
+    const botRandomChoice = Math.floor(Math.random() * choices.length-1) + 1;
+    console.log("Bot's choice:", botRandomChoice);
+
+    const amount = web3?.utils.toWei(bet.toString(), "ether"); // Convert bet to Wei
+
+    // Approve the bet amount
+    await rpsCoin.methods.approve(rps.options.address, amount).send({ from: account });
+    await rpsCoin.methods.approve(rps.options.address, amount).send({ from: botAccount });
+
+    const secret = generateSecret(16);
+    const hash = web3?.utils.soliditySha3({ type: "uint8", value: choice }, { type: "string", value: secret })
+
+    const cgTx = await rps.methods.createGame(hash, amount).send({ from: account });
+    const gameId = cgTx.events?.GameCreated?.returnValues?.gameId as number;
+    console.log("Game ID:", gameId);
+    
+    await rps.methods.joinGame(gameId, botRandomChoice).send({ from: botAccount });
+    console.log("Bot joined the game");
+    
+    const revealTx = await rps.methods.reveal(parseInt(gameId.toString()), choice, secret).send({ from: account });
+    const result = revealTx.events?.GameEnded?.returnValues;
+    const resultGameId = result?.gameId as number;
+    const winner = result?.winner as string;
+    const amountWon = result?.amountWon as number;
+    console.log("Game Result:", result);
+    console.log("Game ID:", resultGameId);
+    console.log("Winner:", winner);
+    console.log("Account", account);
+    console.log("Amount Won:", amountWon);
+
+    if (gameId != resultGameId) {
+      alert("Game ID mismatch. Please try again.");
+      return
+    }
+
+    if (winner.toLowerCase() == account) {
+      setResult("You win!");
+      console.log("Winner: You");
+    } else if (winner.toLowerCase() == botAccount) {
+      setResult("You lose!");
+      console.log("Winner: Bot");
+    } else {
+      setResult("It's a draw!");
+      console.log("Winner: Draw");
+    }
+
+    updateBalance();
     setUserChoice(choice);
     setBotChoice(botRandomChoice);
-
-    // Determine the winner
-    if (choice === botRandomChoice) {
-      setResult("It's a draw!");
-    } else if (
-      (choice === "rock" && botRandomChoice === "scissors") ||
-      (choice === "paper" && botRandomChoice === "rock") ||
-      (choice === "scissors" && botRandomChoice === "paper")
-    ) {
-      setResult("You win!");
-      transferCoin(bet);
-      // setBalance(balance + bet); // Add bet to user's balance
-      // setBotBalance(botBalance - bet); // Deduct bet from bot's balance
-    } else {
-      setResult("You lose!");
-      transferCoin(-bet);
-      // setBalance(balance - bet); // Deduct bet from user's balance
-      // setBotBalance(botBalance + bet); // Add bet to bot's balance
-    }
   };
 
   function resetGame() {
@@ -119,17 +154,21 @@ function App() {
     setBet(0);
   };
 
-
   useEffect(() => {
+    if (!web3) {
+      alert("There is no web3 provider. Please install MetaMask.");
+      return;
+    }
     initializeAccounts()
   }, []);
 
   useEffect(() => {
     if (account) {
-      rpsCoin.methods.getBalance(account).call<number>()
-      .then((balance) => {
-        if (balance) {
-          setBalance(Number(balance));
+      console.log(account);
+      rpsCoin.methods.balanceOf(account).call<number>()
+      .then((bal) => {
+        if (bal) {
+          setBalance(Number(web3?.utils.fromWei(bal.toString(), "ether")));
         }
       });
     }
@@ -137,10 +176,10 @@ function App() {
   
   useEffect(() => {
     if (botAccount) {
-      rpsCoin.methods.getBalance(botAccount).call<number>()
-      .then((botBalance) => {
-        if (botBalance) {
-          setBotBalance(Number(botBalance));
+      rpsCoin.methods.balanceOf(botAccount).call<number>()
+      .then((botBal) => {
+        if (botBal) {
+          setBotBalance(Number(web3?.utils.fromWei(botBal.toString(), "ether")));
         }
       })
     }
@@ -182,16 +221,16 @@ function App() {
         </label>
       </div>
       <div className="choices">
-        {choices.map((choice) => (
-          <button key={choice} onClick={() => playGame(choice)}>
+        {choices.slice(1).map((choice, index) => (
+          <button key={choice} onClick={() => playGame(index + 1)}>
             {choice}
           </button>
         ))}
       </div>
       {userChoice && botChoice && (
         <div className="results">
-          <p>You chose: {userChoice}</p>
-          <p>Bot chose: {botChoice}</p>
+          <p>You chose: {choices[userChoice]}</p>
+          <p>Bot chose: {choices[botChoice]}</p>
           <p>{result}</p>
         </div>
       )}
