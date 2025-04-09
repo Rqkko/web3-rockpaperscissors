@@ -16,6 +16,22 @@ function App() {
 
   const choices = ["rock", "paper", "scissors"];
 
+  async function initializeAccounts() {
+    if (!web3) {
+      alert("Please install MetaMask");
+      return;
+    }
+
+    const accounts = await window.ethereum?.request({ method: "eth_requestAccounts" }) as string[];
+    if (!accounts || accounts.length === 0) {
+      alert("No accounts found. Please connect your wallet.");
+      return;
+    }
+
+    setAccount(accounts[0]);
+    setBotAccount(accounts[1]);
+  }
+
   function transferCoin(amount: number) {
     if (!web3) {
       alert("Please install MetaMask");
@@ -103,32 +119,6 @@ function App() {
     setBet(0);
   };
 
-  async function initializeAccounts() {
-    if (!web3) {
-      alert("Please install MetaMask");
-      return;
-    }
-
-    const accounts = await window.ethereum?.request({ method: "eth_requestAccounts" }) as string[];
-    if (!accounts || accounts.length === 0) {
-      alert("No accounts found. Please connect your wallet.");
-      return;
-    }
-
-    const key = import.meta.env.VITE_BOT_PRIVATE_KEY;
-    if (!key) {
-      alert("Bot private key not found");
-      return;
-    }
-    const ba = web3.eth.accounts.privateKeyToAccount(key);
-    if (!ba) {
-      alert("Bot account not found");
-      return;
-    }
-
-    setAccount(accounts[0]);
-    setBotAccount(ba.address);
-  }
 
   useEffect(() => {
     initializeAccounts()
