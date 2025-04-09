@@ -32,33 +32,6 @@ function App() {
     setBotAccount(accounts[1]);
   }
 
-  // function transferCoin(amount: number) {
-  //   if (!web3) {
-  //     alert("Please install MetaMask");
-  //     return;
-  //   }
-
-  //   if (amount <= 0) {
-  //     rpsCoin.methods
-  //     .transfer(botAccount, Math.abs(amount))
-  //     .send({ from: account }) // Ensure [from](http://_vscodecontentref_/6) matches the connected MetaMask account
-  //     .on("transactionHash", (hash: string) => {
-  //       console.log("Transaction Hash:", hash);
-  //     })
-  //     .on("receipt", (receipt: any) => {
-  //       console.log("Transaction Receipt:", receipt);
-  //       updateBalance();
-  //     })
-  //     .on("error", (error: any) => {
-  //       console.error("Transaction Error:", error);
-  //     });
-  //   } else {
-  //     // Transfer to the user
-  //     rpsCoin.methods.transfer(account, amount).send({ from: botAccount });
-  //   }
-  //   updateBalance();
-  // }
-
   function updateBalance() {
     if (account) {
       rpsCoin.methods.balanceOf(account).call<number>()
@@ -96,7 +69,7 @@ function App() {
       return;
     }
 
-    const botRandomChoice = Math.floor(Math.random() * choices.length-1) + 1;
+    const botRandomChoice = Math.floor(Math.random() * (choices.length-1)) + 1;
     console.log("Bot's choice:", botRandomChoice);
 
     const amount = web3?.utils.toWei(bet.toString(), "ether"); // Convert bet to Wei
