@@ -21,12 +21,15 @@ contract RPS {
     uint256 public gameIdCounter;
     mapping(uint256 => Game) public games;
 
+    event GameCreated(uint256 gameId, address indexed player1, uint256 betAmount);
+    event GameEnded(uint256 gameId, address indexed winner, uint256 amountWon, string result);
+
     constructor(address _rpsCoinAddress) {
         rpsCoin = IERC20(_rpsCoinAddress);
     }
 
     // Player 1 creates a game and commits to a move (hash = keccak256(abi.encodePacked(move, secret)))
-    function createGame(bytes32 hashedMove, uint256 amount) external returns (uint256) {
+    function createGame(bytes32 hashedMove, uint256 amount) external {
         require(amount > 0, "Bet must be greater than 0");
 
         // Transfer RPSCoin to contract
@@ -43,7 +46,7 @@ contract RPS {
             state: GameState.WaitingForPlayer
         });
 
-        return gameId;
+        emit GameCreated(gameId, msg.sender, amount); // Emit the event
     }
 
     // Player 2 joins and plays move
@@ -79,11 +82,18 @@ contract RPS {
         // Pay winner
         if (winner != address(0)) {
             rpsCoin.transfer(winner, totalPot);
+            if (winner == game.player1) {
+                emit GameEnded(gameId, game.player1, totalPot, "Player 1 wins!");
+            } else {
+                emit GameEnded(gameId, game.player2, totalPot, "Player 2 wins!");
+            }
         } else {
             // Draw: refund both
             rpsCoin.transfer(game.player1, game.betAmount);
             rpsCoin.transfer(game.player2, game.betAmount);
+            emit GameEnded(gameId, address(0), 0, "Draw! Both players refunded.");
         }
+
     }
 
     function determineWinner(Move move1, Move move2, address player1, address player2) internal pure returns (address) {
