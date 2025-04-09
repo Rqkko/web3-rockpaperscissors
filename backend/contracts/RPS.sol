@@ -93,7 +93,6 @@ contract RPS {
             rpsCoin.transfer(game.player2, game.betAmount);
             emit GameEnded(gameId, address(0), 0, "Draw! Both players refunded.");
         }
-
     }
 
     function determineWinner(Move move1, Move move2, address player1, address player2) internal pure returns (address) {
