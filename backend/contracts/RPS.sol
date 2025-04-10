@@ -28,7 +28,7 @@ contract RPS {
         rpsCoin = IERC20(_rpsCoinAddress);
     }
 
-    // Player 1 creates a game and commits to a move (hash = keccak256(abi.encodePacked(move, secret)))
+    // Player 1 creates a game and commits to a move
     function createGame(bytes32 hashedMove, uint256 amount) external {
         require(amount > 0, "Bet must be greater than 0");
 
