@@ -92,12 +92,6 @@ function App() {
     const result = revealTx.events?.GameEnded?.returnValues;
     const resultGameId = result?.gameId as number;
     const winner = result?.winner as string;
-    const amountWon = result?.amountWon as number;
-    console.log("Game Result:", result);
-    console.log("Game ID:", resultGameId);
-    console.log("Winner:", winner);
-    console.log("Account", account);
-    console.log("Amount Won:", amountWon);
 
     if (gameId != resultGameId) {
       alert("Game ID mismatch. Please try again.");
