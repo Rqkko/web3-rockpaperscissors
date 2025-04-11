@@ -77,26 +77,30 @@ function App() {
     // Approve the bet amount
     await rpsCoin.methods.approve(rps.options.address, amount).send({ from: account });
     await rpsCoin.methods.approve(rps.options.address, amount).send({ from: botAccount });
+    // console.log("Done");
+    // return;
 
     const secret = generateSecret(16);
     const hash = web3?.utils.soliditySha3({ type: "uint8", value: choice }, { type: "string", value: secret })
 
-    const cgTx = await rps.methods.createGame(hash, amount).send({ from: account });
-    const gameId = cgTx.events?.GameCreated?.returnValues?.gameId as number;
-    console.log("Game ID:", gameId);
-    
-    await rps.methods.joinGame(gameId, botRandomChoice).send({ from: botAccount });
-    console.log("Bot joined the game");
-    
-    const revealTx = await rps.methods.reveal(parseInt(gameId.toString()), choice, secret).send({ from: account });
-    const result = revealTx.events?.GameEnded?.returnValues;
-    const resultGameId = result?.gameId as number;
-    const winner = result?.winner as string;
+    const tx = await rps.methods.initiateGame(amount, botAccount, choice, secret, hash, botRandomChoice).send({ from: account });
+    console.log("Game initiated");
 
-    if (gameId != resultGameId) {
-      alert("Game ID mismatch. Please try again.");
-      return
+    const gameEndedEvent = tx.events?.GameEnded?.returnValues;
+
+    if (!gameEndedEvent) {
+      alert("Game ended event not found.");
+      return;
     }
+    const gameId = gameEndedEvent.gameId as number;
+    const winner = gameEndedEvent.winner as string;
+    const amountWon = gameEndedEvent.amountWon as number;
+    const result = gameEndedEvent.result as string;
+
+    console.log("Game ID:", gameId);
+    console.log("Winner:", winner);
+    console.log("Result:", result);
+    console.log("Amount Won:", amountWon);
 
     if (winner.toLowerCase() == account) {
       setResult("You win!");

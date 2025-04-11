@@ -28,8 +28,23 @@ contract RPS {
         rpsCoin = IERC20(_rpsCoinAddress);
     }
 
+    function initiateGame(
+        uint256 amount,
+        address opponentAccount,
+        uint8 choice,
+        string memory secret,
+        bytes32 hashedMove,
+        uint8 opponentChoice
+    ) external returns (address) {
+        uint256 gameId = createGame(hashedMove, amount);
+        joinGame(gameId, Move(opponentChoice), opponentAccount);
+
+        address winner = reveal(gameId, Move(choice), secret);
+        return winner;
+    }
+
     // Player 1 creates a game and commits to a move
-    function createGame(bytes32 hashedMove, uint256 amount) external {
+    function createGame(bytes32 hashedMove, uint256 amount) public returns (uint256) {
         require(amount > 0, "Bet must be greater than 0");
 
         // Transfer RPSCoin to contract
@@ -47,24 +62,25 @@ contract RPS {
         });
 
         emit GameCreated(gameId, msg.sender, amount); // Emit the event
+        return gameId;
     }
 
     // Player 2 joins and plays move
-    function joinGame(uint256 gameId, Move move) external {
+    function joinGame(uint256 gameId, Move move, address account) public {
         Game storage game = games[gameId];
         require(game.state == GameState.WaitingForPlayer, "Game not joinable");
         require(move != Move.None, "Invalid move");
 
         // Transfer matching bet to contract
-        rpsCoin.transferFrom(msg.sender, address(this), game.betAmount);
+        rpsCoin.transferFrom(account, address(this), game.betAmount);
 
-        game.player2 = msg.sender;
+        game.player2 = account;
         game.move2 = move;
         game.state = GameState.MoveSubmitted;
     }
 
     // Player 1 reveals their move and secret
-    function reveal(uint256 gameId, Move move, string memory secret) external {
+    function reveal(uint256 gameId, Move move, string memory secret) public returns (address) {
         Game storage game = games[gameId];
         require(game.state == GameState.MoveSubmitted, "Cannot reveal yet");
         require(msg.sender == game.player1, "Only player1 can reveal");
@@ -84,14 +100,17 @@ contract RPS {
             rpsCoin.transfer(winner, totalPot);
             if (winner == game.player1) {
                 emit GameEnded(gameId, game.player1, totalPot, "Player 1 wins!");
+                return game.player1;
             } else {
                 emit GameEnded(gameId, game.player2, totalPot, "Player 2 wins!");
+                return game.player2;
             }
         } else {
             // Draw: refund both
             rpsCoin.transfer(game.player1, game.betAmount);
             rpsCoin.transfer(game.player2, game.betAmount);
             emit GameEnded(gameId, address(0), 0, "Draw! Both players refunded.");
+            return address(0);
         }
     }
 
